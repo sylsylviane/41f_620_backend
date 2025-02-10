@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 // les urls sont compliquées car d'un systeme à l'autre (linux, window, mac) les barres obliques peuvent etre dans un sens ou dans l'autre /\
 //on a donc besoin d'un module qui appartient à node.js (path)
 const path = require("path");
-
+const db = require("./config/db")
 //DEMARRER LES VARIABLES D'ENVIRONNEMENT
 const serveur = express(); //variable serveur contient des méthodes (POST, GET, etc.)
 dotenv.config();
@@ -48,13 +48,36 @@ function authentifier(req, res, next) {
   next();
 }
 //on pourrait écrire api, mais non obligatoire dans ce cas-ci. Si on aurait tout le mvc ensemble, on distinguerait les vues des pages des vues de données en utilisant /api/
+
 // FAIRE LA DOCUMENTION DE CHAQUE ROUTE POUR LE TP
 /**
  * Route servant à récupérer tous les films de la base de données
  */
-serveur.get("/films", authentifier, (req, res) => {
-  return res.json({ msg: "films" }); //important de faire un return pour arrêter l'execution de la fonction dès qu'on trouve qqch
+serveur.get("/films", authentifier, async (req, res) => {
+  try{
+      const films = [];
+
+  const docRefs = await db.collection("films").get();
+
+  docRefs.forEach((doc) => {
+    // const film = doc.data();
+    const film = {id:doc.id, ...doc.data()}; //Récupère toutes les données de film, en plus du id. ...doc.data() équivaut à doc.titre, doc.annee, etc
+
+    films.push(film);
+  });
+  if(films.length == 0 ){
+    return res.status(404).json({msg: "Aucun film trouvé."});
+  }
+  return res.json(films); //important de faire un return pour arrêter l'execution de la fonction dès qu'on trouve qqch
+  }catch(erreur){
+    return res.status(500).json({ msg: "Une erreur est survenue" });
+
+  }
 });
+
+/**
+ * Route servant à récupérer un film de la base de données
+ */
 //:id est un parametre dynamique qui changera
 serveur.get("/films/:id", (req, res) => {
   return res.json({ msg: "films id" });
@@ -62,16 +85,38 @@ serveur.get("/films/:id", (req, res) => {
 serveur.post("/films", (req, res) => {
   return res.json({ msg: "films post" });
 });
+
+
 /**
- * Route pour remettre a zéro la base de données, l'ordre est important. Mettre les routes avec le moins de paramètre en premier
+ * Route pour initialiser la base de données, l'ordre est important. Mettre les routes avec le moins de paramètre en premier
  */
 //ici on appele la function 'middleware' pour vérifier l'authentification
-serveur.post("/films/initialiser", authentifier, (req, res) => {
-  return res.json({ msg: "authentifié" });
+//TOUTES LES ROUTES DOIVENT AVOIR UN TRY CATCH
+serveur.post("/films/initialiser", (req, res) => {
+  try{
+      const films = require("./data/filmsDepart");
+      //TODO: Vérifier si le film est déjà dans la base de données
+
+      films.forEach(async (film) => {
+        await db.collection("films").add(film);
+      });
+      return res.status(201).json({ msg: "Base de données initialisée" });
+  }catch(erreur){
+      return res.status(500).json({ msg: "Une erreur est survenue" });
+
+  }
 });
+
+/**
+ * Route servant à modifier un film de la base de données
+ */
 serveur.put("/films/:id", (req, res) => {
   return res.json({ msg: "films put" });
 }); //pour modifier un film, on ajoute :id
+
+/**
+ * Route servant à supprimer un film de la base de données
+ */
 serveur.delete("/films/:id", (req, res) => {
   return res.json({ msg: "films delete" });
 }); //on veut seulement supprimer un film à la fois, donc on utilise :id
